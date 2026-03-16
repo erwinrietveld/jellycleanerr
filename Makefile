@@ -25,14 +25,14 @@ test: dev-image
 run-dry: image
 	docker run --rm --network host \
 		-v "$(CONFIG):/app/config.toml:ro" \
-		--entrypoint /usr/local/bin/sanitarr \
+		--entrypoint /usr/local/bin/jellycleanerr \
 		$(IMAGE_NAME) \
 		--config /app/config.toml --log-level info
 
 run-force: image
 	docker run --rm --network host \
 		-v "$(CONFIG):/app/config.toml:ro" \
-		--entrypoint /usr/local/bin/sanitarr \
+		--entrypoint /usr/local/bin/jellycleanerr \
 		$(IMAGE_NAME) \
 		--config /app/config.toml --log-level info --force-delete
 

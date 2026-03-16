@@ -1,6 +1,6 @@
 [package]
-name = "sanitarr"
-version = "0.1.1"
+name = "jellycleanerr"
+version = "1.0.0"
 description = "A Jellyfin cleanup tool with a built-in web interface."
 repository = "https://github.com/erwinrietveld/jellycleanerr"
 edition = "2024"

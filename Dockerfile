@@ -14,7 +14,7 @@ RUN --mount=type=bind,source=src,target=src \
   <<EOF
 set -e
 cargo build --locked --release
-mv ./target/release/sanitarr /app
+mv ./target/release/jellycleanerr /app
 EOF
 
 FROM node:22-alpine AS frontend_builder
@@ -29,7 +29,7 @@ FROM debian:trixie-slim AS runtime
 RUN apt-get update && \
     apt-get install -y libssl3 python3 && \
     rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
-COPY --from=builder /app/sanitarr /usr/local/bin
+COPY --from=builder /app/jellycleanerr /usr/local/bin
 COPY gui /opt/jellycleanerr/gui
 COPY --from=frontend_builder /app/gui/static/tailwind.css /opt/jellycleanerr/gui/static/tailwind.css
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
@@ -37,7 +37,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENV HOST=0.0.0.0 \
     PORT=8282 \
-    SANITARR_CONFIG=/config/config.toml \
+    JELLYCLEANERR_CONFIG=/config/config.toml \
     DB_PATH=/data/jellycleanerr-gui.db \
     CACHE_TTL_SECONDS=60 \
     INTERVAL=1h \

@@ -32,8 +32,8 @@ pub fn setup_logging(level: LoggingSettings) -> anyhow::Result<()> {
 ///
 /// Examples:
 ///   - `info`
-///   - `off,sanitarr=debug,reqwest=info`
-///   - `off,sanitarr::http=info,sanitarr::services=debug`
+///   - `off,jellycleanerr=debug,reqwest=info`
+///   - `off,jellycleanerr::http=info,jellycleanerr::services=debug`
 pub struct LoggingSettings {
     pub root_level: LevelFilter,
     pub other_levels: Vec<(String, LevelFilter)>,
@@ -87,14 +87,14 @@ mod test_super {
 
     #[test]
     fn test_deser_extra_log_levels() {
-        let raw_str = "off,sanitarr=debug,reqwest=info";
+        let raw_str = "off,jellycleanerr=debug,reqwest=info";
         let settings = LoggingSettings::from_str(raw_str).unwrap();
 
         assert_eq!(settings.root_level, LevelFilter::Off);
         assert_eq!(settings.other_levels.len(), 2);
 
         let (log_target_one, level_one) = &settings.other_levels[0];
-        assert_eq!(log_target_one, "sanitarr");
+        assert_eq!(log_target_one, "jellycleanerr");
         assert_eq!(level_one, &LevelFilter::Debug);
 
         let (log_target_two, level_two) = &settings.other_levels[1];

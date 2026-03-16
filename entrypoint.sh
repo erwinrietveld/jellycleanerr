@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Interval for periodic Sanitarr cleanup runs.
+# Interval for periodic Jellycleanerr cleanup runs.
 INTERVAL="${INTERVAL:-1h}"
-SANITARR_CONFIG="${SANITARR_CONFIG:-/config/config.toml}"
+CONFIG_PATH="${JELLYCLEANERR_CONFIG:-${SANITARR_CONFIG:-/config/config.toml}}"
 LOG_LEVEL="${LOG_LEVEL:-info}"
 FORCE_DELETE="${FORCE_DELETE:-true}"
 IDLE_AUTO_DELETE="${IDLE_AUTO_DELETE:-true}"
@@ -17,13 +17,13 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-build_sanitarr_cmd() {
+build_jellycleanerr_cmd() {
   if [ "$#" -gt 0 ]; then
-    echo "sanitarr $*"
+    echo "jellycleanerr $*"
     return
   fi
 
-  local cmd="sanitarr --config ${SANITARR_CONFIG} --log-level ${LOG_LEVEL}"
+  local cmd="jellycleanerr --config ${CONFIG_PATH} --log-level ${LOG_LEVEL}"
   if [ "$(is_dry_run_enabled)" = "0" ]; then
     case "${FORCE_DELETE}" in
       1|true|TRUE|yes|YES|on|ON)
@@ -35,7 +35,7 @@ build_sanitarr_cmd() {
 }
 
 is_dry_run_enabled() {
-  python3 - "${SANITARR_CONFIG}" <<'PY'
+  python3 - "${CONFIG_PATH}" <<'PY'
 import sys, tomllib
 cfg_path = sys.argv[1]
 try:
@@ -50,13 +50,13 @@ print("0" if raw in {"0", "false", "no", "off"} else "1")
 PY
 }
 
-SAN_CMD="$(build_sanitarr_cmd "$@")"
+SAN_CMD="$(build_jellycleanerr_cmd "$@")"
 echo "jellycleanerr gui on http://0.0.0.0:${PORT:-8282}"
 echo "jellycleanerr cleanup command: ${SAN_CMD}"
 echo "jellycleanerr cleanup interval: ${INTERVAL}"
 
 run_default_cleanup_multi_user() {
-  mapfile -t USERS < <(python3 - "${SANITARR_CONFIG}" <<'PY'
+  mapfile -t USERS < <(python3 - "${CONFIG_PATH}" <<'PY'
 import sys, tomllib
 cfg_path = sys.argv[1]
 with open(cfg_path, "rb") as f:
@@ -81,7 +81,7 @@ PY
 
   for USERNAME in "${USERS[@]}"; do
     TMP_CONFIG="$(mktemp /tmp/jellycleanerr-config.XXXXXX.toml)"
-    python3 - "${SANITARR_CONFIG}" "${TMP_CONFIG}" "${USERNAME}" <<'PY'
+    python3 - "${CONFIG_PATH}" "${TMP_CONFIG}" "${USERNAME}" <<'PY'
 import sys, tomllib
 
 src, dst, username = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -153,7 +153,7 @@ with open(dst, "w", encoding="utf-8") as f:
     f.write("\n".join(lines))
 PY
 
-    RUN_CMD="sanitarr --config ${TMP_CONFIG} --log-level ${LOG_LEVEL}"
+    RUN_CMD="jellycleanerr --config ${TMP_CONFIG} --log-level ${LOG_LEVEL}"
     if [ "$(is_dry_run_enabled)" = "0" ]; then
       case "${FORCE_DELETE}" in
         1|true|TRUE|yes|YES|on|ON)

@@ -19,7 +19,11 @@ import tomllib
 
 APP_PORT = int(os.getenv("PORT", "8282"))
 APP_HOST = os.getenv("HOST", "0.0.0.0")
-CONFIG_PATH = Path(os.getenv("SANITARR_CONFIG", "/config/config.toml"))
+CONFIG_PATH = Path(
+    os.getenv("JELLYCLEANERR_CONFIG")
+    or os.getenv("SANITARR_CONFIG")
+    or "/config/config.toml"
+)
 DB_PATH = Path(os.getenv("DB_PATH", "/data/jellycleanerr-gui.db"))
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "60"))
 STATIC_DIR = Path(__file__).parent / "static"
