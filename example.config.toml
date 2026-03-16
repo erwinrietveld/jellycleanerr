@@ -1,4 +1,13 @@
 username = "foo"
+monitor_all_users = false
+monitor_all_libraries = true
+
+[general]
+remove_watched_enabled = true
+remove_watched_days = 60
+remove_unwatched_enabled = false
+remove_unwatched_days = 365
+dry_run = true
 
 [jellyfin]
 base_url = "http://localhost:8096"
@@ -11,7 +20,7 @@ tags_to_keep = ["keep"]
 retention_period = "2d"
 
 [sonarr]
-base_url = "http://localhost:7878"
+base_url = "http://localhost:8989"
 api_key = "api-key-foo"
 tags_to_keep = ["keep"]
 retention_period = "1w"

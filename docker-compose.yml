@@ -1,0 +1,25 @@
+services:
+  jellycleanerr:
+    build:
+      context: .
+    image: jellycleanerr:dev
+    container_name: jellycleanerr
+    network_mode: host
+    environment:
+      TZ: Europe/Amsterdam
+      HOST: 0.0.0.0
+      PORT: 8282
+      INTERVAL: 45m
+      SANITARR_CONFIG: /config/config.toml
+      DB_PATH: /data/jellycleanerr-gui.db
+      CACHE_TTL_SECONDS: 60
+      LOG_LEVEL: info
+      FORCE_DELETE: "true"
+      ENABLE_FORMULA1_CATEGORY: "true"
+      # Optional Jellyseerr/Jellyfin request cleanup integration from GUI
+      # SEERR_URL: http://localhost:5055
+      # SEERR_API_KEY: your-key
+    volumes:
+      - ./config.toml:/config/config.toml
+      - ./data:/data
+    restart: unless-stopped

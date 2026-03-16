@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jellycleanerr</title>
+  <meta name="theme-color" content="#111827" />
+  <meta name="apple-mobile-web-app-title" content="Jellycleanerr" />
+  <meta name="application-name" content="Jellycleanerr" />
+  <meta name="msapplication-TileColor" content="#111827" />
+  <meta name="msapplication-TileImage" content="/icons/mstile-150x150.png" />
+  <link rel="icon" href="/icons/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="stylesheet" href="/tailwind.css" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-jellybg text-slate-100">
+  <main class="container">
+    <header class="topbar" id="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <button class="brand-btn" id="brandDashboardBtn">
+            <img class="brand-logo" src="/icons/jellycleanerr-logo.svg" alt="" aria-hidden="true">
+            <span>Jellycleanerr</span>
+          </button>
+        </div>
+        <nav class="top-nav">
+          <button class="nav-btn active" id="navDashboardBtn">Dashboard</button>
+          <button class="nav-btn" id="navStatsBtn">Stats</button>
+          <button class="nav-btn" id="navSettingsBtn">Settings</button>
+        </nav>
+        <div class="auth-nav">
+          <button class="btn hidden" id="signInNavBtn">Sign In</button>
+          <div class="auth-user-wrap hidden" id="authUserBox">
+            <button class="auth-user-trigger" id="authUserTrigger" type="button">
+              <span id="authUserName"></span>
+              <span class="caret-down"></span>
+            </button>
+            <div class="auth-dropdown hidden" id="authUserDropdown">
+              <div class="auth-dropdown-head">
+                <div class="auth-dropdown-name" id="authUserDropdownName"></div>
+                <div class="hint" id="authUserRole"></div>
+              </div>
+              <button class="btn auth-signout-btn" id="signOutBtn" type="button">Sign Out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section id="loginView" class="hidden">
+      <div class="login-wrap">
+        <article class="settings-card login-card">
+          <div class="login-brand">
+            <img class="login-logo" src="/icons/jellycleanerr-logo.svg" alt="Jellycleanerr logo">
+            <h2 class="login-brand-title">Jellycleanerr</h2>
+          </div>
+          <form id="loginForm" class="login-form">
+            <label class="field"><span>Username</span><input id="loginUsername" type="text" autocomplete="username"></label>
+            <label class="field"><span>Password</span><input id="loginPassword" type="password" autocomplete="current-password"></label>
+            <label class="check"><input id="loginRemember" type="checkbox" checked><span>Keep me signed in</span></label>
+            <button class="btn primary" id="loginSubmitBtn" type="submit">Sign In with Jellyfin</button>
+            <div class="hint" id="loginMsg"></div>
+          </form>
+        </article>
+      </div>
+    </section>
+
+    <section id="dashboardView">
+      <header class="header">
+        <div>
+          <h2 class="title">Dashboard</h2>
+          <p class="subtitle" id="subtitle">Automatically delete watched and idle media from your Jellyfin library</p>
+        </div>
+        <button class="btn" id="refreshBtn">Refresh</button>
+      </header>
+
+      <section class="filters" id="filters">
+        <button class="chip active" data-status="">All</button>
+        <button class="chip" data-status="pending_watched">Pending Watched</button>
+        <button class="chip" data-status="pending_idle">Pending Idle</button>
+        <button class="chip" data-status="due">Due</button>
+        <button class="chip" data-status="kept">Kept</button>
+      </section>
+
+      <div id="error"></div>
+      <section class="grid" id="grid"></section>
+    </section>
+
+    <section id="statsView" class="hidden">
+      <header class="header">
+        <div>
+          <h2 class="title">Stats</h2>
+          <p class="subtitle">Storage and cleanup insights</p>
+        </div>
+      </header>
+      <section class="stats" id="statsOverview"></section>
+      <section class="stats-range-group">
+        <div class="stats-controls">
+          <select id="statsRangePreset" class="range-select">
+            <option value="last7">Last 7 Days</option>
+            <option value="next7">Next 7 Days</option>
+            <option value="last30" selected>Last 30 Days</option>
+            <option value="next30">Next 30 Days</option>
+            <option value="last90">Last 90 Days</option>
+            <option value="next90">Next 90 Days</option>
+            <option value="lastYear">Last Year</option>
+            <option value="nextYear">Next Year</option>
+            <option value="all">All Data</option>
+            <option value="custom">Custom Range</option>
+          </select>
+          <div id="customRangeWrap" class="custom-range">
+            <input id="statsRangeStart" type="text" inputmode="numeric" placeholder="YYYY-MM-DD" aria-label="Start date">
+            <input id="statsRangeEnd" type="text" inputmode="numeric" placeholder="YYYY-MM-DD" aria-label="End date">
+          </div>
+          <button class="btn" id="refreshStatsBtn" disabled>Apply</button>
+        </div>
+        <section class="chart-grid">
+          <article class="settings-card">
+            <div class="chart-head">
+              <h3>Storage Cleanup</h3>
+              <span class="hint" id="barChartMeta"></span>
+            </div>
+            <div class="chart-canvas-wrap">
+              <canvas class="chart-canvas" id="deletedDailyChart"></canvas>
+            </div>
+          </article>
+          <article class="settings-card">
+            <div class="chart-head">
+              <h3>Freed Cumulatively</h3>
+              <span class="hint" id="lineChartMeta"></span>
+            </div>
+            <div class="chart-canvas-wrap">
+              <canvas class="chart-canvas" id="deletedCumulativeChart"></canvas>
+            </div>
+          </article>
+        </section>
+      </section>
+    </section>
+
+    <section id="settingsView" class="hidden">
+      <header class="header settings-header">
+        <div>
+          <h2 class="title">Settings</h2>
+          <p class="subtitle">Configure Jellycleanerr settings</p>
+        </div>
+        <button class="btn save-btn" type="button" id="saveSettingsTopBtn">Saved ✓</button>
+      </header>
+
+      <form id="settingsForm" class="settings-form">
+        <article class="settings-card">
+          <h3>General</h3>
+          <div class="subsection">
+            <h4 class="subsection-title">Watched Cleanup</h4>
+            <p class="hint">Watched cleanup removes media after it has been watched for the configured number of days.</p>
+          </div>
+          <label class="check"><input id="removeWatchedEnabled" type="checkbox"><span>Enable watched cleanup</span></label>
+          <label class="field"><span>Remove watched after (days)</span><input id="removeWatchedDays" type="number" min="1" step="1" placeholder="60"></label>
+
+          <div class="subsection">
+            <h4 class="subsection-title">Idle Cleanup</h4>
+            <p class="hint">Idle cleanup removes media that has not been watched by monitored users for the configured number of days.</p>
+          </div>
+          <label class="check"><input id="removeUnwatchedEnabled" type="checkbox"><span>Enable idle (unwatched) cleanup</span></label>
+          <label class="field"><span>Remove unwatched after (days)</span><input id="removeUnwatchedDays" type="number" min="1" step="1" placeholder="365"></label>
+
+          <div class="subsection">
+            <h4 class="subsection-title">Manual Mode</h4>
+            <p class="hint">When enabled, Jellycleanerr will continue to track items and move them to the Due list, but nothing will be removed automatically. You can still delete due items manually.</p>
+          </div>
+          <label class="check"><input id="dryRunEnabled" type="checkbox"><span>Enable manual mode</span></label>
+        </article>
+
+        <article class="settings-card">
+          <div class="card-head">
+            <h3>Jellyfin</h3>
+            <button type="button" class="btn conn-test-btn" data-service="jellyfin" id="testJellyfinBtn">Test Connection</button>
+          </div>
+          <label class="field"><span>Base URL</span><input id="jellyfinBaseUrl" type="text" placeholder="http://localhost:8096"></label>
+          <label class="field"><span>API Key</span><input id="jellyfinApiKey" type="password"></label>
+          <div class="subsection">
+            <h4 class="subsection-title">Jellyfin Users</h4>
+          </div>
+          <label class="check override-check"><input id="monitorAllUsers" type="checkbox"><span>Monitor all Jellyfin users</span></label>
+          <div id="jfUsersWrap">
+            <div id="jfUsers" class="users-list"></div>
+          </div>
+          <div class="subsection">
+            <h4 class="subsection-title">Jellyfin Libraries</h4>
+            <p class="hint">Only media from selected libraries will be tracked.</p>
+          </div>
+          <label class="check override-check"><input id="monitorAllLibraries" type="checkbox"><span>Monitor all Jellyfin libraries</span></label>
+          <div id="jfLibrariesWrap">
+            <div id="jfLibraries" class="users-list"></div>
+          </div>
+          <div class="row-actions users-refresh-row">
+            <button type="button" class="btn" id="refreshUsersBtn">Refresh Jellyfin Metadata</button>
+          </div>
+        </article>
+
+        <article class="settings-card">
+          <div class="card-head">
+            <h3>Radarr</h3>
+            <button type="button" class="btn conn-test-btn" data-service="radarr" id="testRadarrBtn">Test Connection</button>
+          </div>
+          <label class="field"><span>Base URL</span><input id="radarrBaseUrl" type="text" placeholder="http://localhost:7878"></label>
+          <label class="field"><span>API Key</span><input id="radarrApiKey" type="password"></label>
+          <label class="field"><span>Tags To Keep (comma-separated)</span><input id="radarrTags" type="text" placeholder="keep, no_remove"></label>
+          <label class="check"><input id="radarrUnmonitor" type="checkbox"><span>Unmonitor watched</span></label>
+        </article>
+
+        <article class="settings-card">
+          <div class="card-head">
+            <h3>Sonarr</h3>
+            <button type="button" class="btn conn-test-btn" data-service="sonarr" id="testSonarrBtn">Test Connection</button>
+          </div>
+          <label class="field"><span>Base URL</span><input id="sonarrBaseUrl" type="text" placeholder="http://localhost:8989"></label>
+          <label class="field"><span>API Key</span><input id="sonarrApiKey" type="password"></label>
+          <label class="field"><span>Tags To Keep (comma-separated)</span><input id="sonarrTags" type="text" placeholder="keep, no_remove"></label>
+          <label class="check"><input id="sonarrUnmonitor" type="checkbox"><span>Unmonitor watched</span></label>
+        </article>
+
+        <article class="settings-card">
+          <div class="card-head">
+            <h3>qBittorrent</h3>
+            <button type="button" class="btn conn-test-btn" data-service="qbittorrent" id="testQbtBtn">Test Connection</button>
+          </div>
+          <label class="field"><span>Base URL</span><input id="qbtBaseUrl" type="text" placeholder="http://localhost:8080"></label>
+          <label class="field"><span>Username</span><input id="qbtUsername" type="text"></label>
+          <label class="field"><span>Password</span><input id="qbtPassword" type="password"></label>
+        </article>
+
+        <article class="settings-card">
+          <div class="card-head">
+            <h3>Deluge</h3>
+            <button type="button" class="btn conn-test-btn" data-service="deluge" id="testDelugeBtn">Test Connection</button>
+          </div>
+          <label class="field"><span>Base URL</span><input id="delugeBaseUrl" type="text" placeholder="http://localhost:8112"></label>
+          <label class="field"><span>Password</span><input id="delugePassword" type="password"></label>
+        </article>
+
+        <div class="settings-actions">
+          <button class="btn save-btn" type="button" id="saveSettingsBtn">Saved ✓</button>
+          <div id="settingsMsg" class="hint"></div>
+        </div>
+      </form>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

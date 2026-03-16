@@ -14,7 +14,7 @@ pub struct JellyfinClient {
 
 impl JellyfinClient {
     pub fn new(config: &JellyfinConfig) -> anyhow::Result<Self> {
-        let JellyfinConfig { base_url, api_key } = config;
+        let JellyfinConfig { base_url, api_key, .. } = config;
         let base_url = Url::parse(base_url)?;
         let default_headers = auth_headers(api_key)?;
         let client = ClientBuilder::new()

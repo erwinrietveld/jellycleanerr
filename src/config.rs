@@ -4,8 +4,17 @@ use std::{path::Path, time::Duration};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(dead_code)]
 pub struct Config {
     pub username: String,
+    #[serde(default)]
+    pub usernames: Vec<String>,
+    #[serde(default)]
+    pub monitor_all_users: bool,
+    #[serde(default)]
+    pub monitor_all_libraries: bool,
+    #[serde(default)]
+    pub general: Option<GeneralConfig>,
     pub jellyfin: JellyfinConfig,
     pub radarr: RadarrConfig,
     pub sonarr: SonarrConfig,
@@ -14,9 +23,28 @@ pub struct Config {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+pub struct GeneralConfig {
+    #[serde(default)]
+    pub remove_watched_enabled: bool,
+    #[serde(default)]
+    pub remove_watched_days: Option<u64>,
+    #[serde(default)]
+    pub remove_unwatched_enabled: bool,
+    #[serde(default)]
+    pub remove_unwatched_days: Option<u64>,
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
 pub struct JellyfinConfig {
     pub base_url: String,
     pub api_key: String,
+    #[serde(default)]
+    pub library_ids: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -92,6 +120,10 @@ mod test {
 
         assert_eq!(cfg.jellyfin.api_key, "api-key-foo");
         assert_eq!(cfg.jellyfin.base_url, "http://localhost:8096");
+        assert!(cfg.monitor_all_libraries);
+        assert!(!cfg.monitor_all_users);
+        assert_eq!(cfg.usernames, Vec::<String>::new());
+        assert!(cfg.general.is_some());
 
         assert_eq!(cfg.radarr.base_url, "http://localhost:7878");
         assert_eq!(cfg.radarr.api_key, "api-key-foo");
@@ -99,7 +131,7 @@ mod test {
         let dur = 60 * 60 * 24 * 2;
         assert_eq!(cfg.radarr.retention_period, Some(Duration::from_secs(dur)));
 
-        assert_eq!(cfg.sonarr.base_url, "http://localhost:7878");
+        assert_eq!(cfg.sonarr.base_url, "http://localhost:8989");
         assert_eq!(cfg.sonarr.api_key, "api-key-foo");
         assert_eq!(&cfg.sonarr.tags_to_keep, &["keep".to_owned()]);
         let dur = 60 * 60 * 24 * 7;

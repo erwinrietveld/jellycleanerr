@@ -1,189 +1,91 @@
-# Sanitarr
+# Jellycleanerr
 
-Sanitarr is a tool designed to clean up your media library by integrating with
-the [**\*arr**](https://wiki.servarr.com/) stack (Radarr, Sonarr), Jellyfin and
-multiple download clients of your choice (currently only qBittorrent and Deluge
-are supported). It helps you manage and maintain your media collection by
-removing fully watched items, thereby reducing the size of your collection on
-the disk.
+<p align="left">
+  <img src="gui/static/icons/jellycleanerr-logo-no-bg-1024x1024.png" alt="Jellycleanerr logo" width="160">
+</p>
+
+Jellycleanerr helps you clean up your Jellyfin library by finding watched and idle media and (optionally) automatically deleting it. It integrates well with the *arr stack (Radarr & Sonarr) and your download client (qBittorrent & Deluge). Jellycleanerr also includes a built-in web interface, making cleanup easier to review and control.
 
 ## Features
 
-- Integrates with \*arr stack, Jellyfin and a number of torrent clients;
-- Supports multiple concurrently running torrent clients;
-- Cleans up movies and series based on your configuration;
-- Supports custom tags to keep specific files;
-- Provides logging and error handling;
+- 🪼 **Jellyfin Cleanup Workflow** – Review watched and idle media from your Jellyfin library and decide what should stay or go.
+- 🖥️ **Built-In Web Interface** – Manage cleanup from a browser with a dashboard, settings page, and statistics view.
+- 👤 **Jellyfin Sign-In** – Sign in with your Jellyfin account and stay signed in for future visits.
+- 👥 **User-Based Monitoring** – Choose which Jellyfin users should count toward watched status, or monitor all users.
+- 📚 **Library Selection** – Limit cleanup to specific Jellyfin libraries instead of scanning everything.
+- ⏳ **Watched and Idle Retention Rules** – Set separate cleanup rules for watched media and for media that has never been watched.
+- ✋ **Manual Mode** – Let items move to the Due list without deleting them automatically, so you stay in control.
+- 🏷️ **Keep Overrides** – Mark movies, episodes, or entire seasons to prevent them from being removed.
+- 📺 **Season-Level Actions** – Keep or delete whole seasons directly from the interface.
+- 🔗 **Arr Stack Integration** – Works with Radarr, Sonarr, qBittorrent, and Deluge as part of your existing media setup.
+- 📊 **Cleanup Statistics** – View pending, due, kept, and deleted items, along with storage-related insights.
 
-## Configuration
+## Screenshots
 
-Sanitarr uses a configuration file to specify the settings for each service it
-integrates with. Below is an example configuration file in TOML format (all
-parameters should be self explanatory). For more details check
-[src/config.rs](src/config.rs)
+<p>
+  <img src="docs/screenshots/jellycleanerr-screenshot01.png" alt="Jellycleanerr screenshot 1" width="900">
+</p>
 
-```toml
-username = "john"
+<p>
+  <img src="docs/screenshots/jellycleanerr-screenshot02.png" alt="Jellycleanerr screenshot 2" width="900">
+</p>
 
-[jellyfin]
-base_url = "http://localhost:8096"
-api_key = "sadfa2345234asdfasd2345234"
+<p>
+  <img src="docs/screenshots/jellycleanerr-screenshot03.png" alt="Jellycleanerr screenshot 3" width="900">
+</p>
 
-[radarr]
-base_url = "http://localhost:7878"
-api_key = "sadfa2345234asdfasd2345234"
-tags_to_keep = ["keep"]
-retention_period = "2d"
-# unmonitor watched movies to prevent further downloads. Useful when the file is
-# still kept after being watched due to retention period not passed yet.
-# Defaults to `false`
-unmonitor_watched = false
+## Quick Start
 
-[sonarr]
-base_url = "http://localhost:8989"
-api_key = "sadfa2345234asdfasd2345234"
-tags_to_keep = ["keep", "no_remove"]
-retention_period = "1w"
-# unmonitor watched episodes to prevent further downloads.
-# Defaults to `false`
-unmonitor_watched = false
-
-# You can configure multiple download clients running in your system. Currently
-# only 'qBittorrent' and 'Deluge' are supported. Which client to delete a
-# specific torrent from will be decided automatically based on the API response
-# from either Sonarr or Radarr. See "History" API reference for more details
-# - https://sonarr.tv/docs/api/#v3/tag/history/GET/api/v3/history
-# - https://radarr.video/docs/api/#/History/get_api_v3_history
-
-[download_clients.qbittorrent]
-base_url = "http://localhost:6880"
-username = "admin"
-password = "adminadmin"
-
-[download_clients.deluge]
-base_url = "http://localhost:8112"
-password = "qwerty"
-```
-
-## Installation
-
-### From Source
-
-To build and install Sanitarr from source, you need to have [Rust
-installed](https://www.rust-lang.org/tools/install). Clone the repository and
-run the following commands:
-
-```sh
-git clone https://github.com/serzhshakur/sanitarr.git
-cd sanitarr
-cargo build --release
-```
-
-The binary will be located in the `target/release` directory.
-
-### Using Docker
-
-When running Sanitarr in a Docker container, the binary will be executed
-periodically at intervals controlled by the `INTERVAL` environment variable. The
-value for `INTERVAL` should be specified in a [format understood by the `sleep`
-command](https://www.gnu.org/software/coreutils/manual/html_node/sleep-invocation.html#sleep_003a-Delay-for-a-specified-time)
-(e.g., `1h` for one hour, `30m` for thirty minutes).
-
-### Pre-built Docker image
-
-Docker images are regularly published to [ghcr.io
-registry](https://github.com/serzhshakur/sanitarr/pkgs/container/sanitarr). Note
-that currently only amd64 images are published.
-
-### Build locally
-
-You can build and run Sanitarr using Docker:
-
-```sh
-docker build -t sanitarr:local .
-```
-
-## Running
-
-### Standalone Docker container
-
-```sh
-docker run -it \
-  --network host \
-  -e INTERVAL="1h" \
-  -v /path/to/sanitarr-config.toml:/app/config.toml \
-  sanitarr:local \
-  --log-level debug --config /app/config.toml --force-delete
-```
-
-### Docker Compose
-
-You can also use Docker Compose to run Sanitarr. Below is an example
-`docker-compose.yml` file:
+Use Docker Compose:
 
 ```yaml
 services:
-  sanitarr:
-    image: ghcr.io/serzhshakur/sanitarr:latest
-    container_name: sanitarr
-    network_mode: "host"
-    pull_policy: never
+  jellycleanerr:
+    image: ghcr.io/erwinrietveld/jellycleanerr:latest
+    container_name: jellycleanerr
+    network_mode: host
     environment:
-      LOG_LEVEL: debug
+      PORT: 8282
       INTERVAL: 45m
+      LOG_LEVEL: info
+      FORCE_DELETE: "true"
+      IDLE_AUTO_DELETE: "true"
     volumes:
-      - /path/to/sanitarr-config.toml:/app/config.toml
-    command:
-      - "--config"
-      - "/app/config.toml"
-      - "--force-delete"
-    depends_on:
-      - jellyfin
-      - sonarr
-      - radarr
+      - /path/to/config.toml:/config/config.toml
+      - /path/to/data:/data
 ```
 
-### Using sanitarr binary executable
+Open `http://<host>:8282`, go to **Settings**, configure services, and save.
 
-To run Sanitarr executable, use the following command:
+## Development
 
 ```sh
-sanitarr --config /path/to/config.toml [--log-level] [--force-delete]
+git clone https://github.com/erwinrietveld/jellycleanerr.git
+cd jellycleanerr
+make image
+docker run --rm -it --network host \
+  -e PORT=8282 \
+  -v "$PWD/config.toml:/config/config.toml" \
+  -v "$PWD/data:/data" \
+  jellycleanerr:dev
 ```
 
-For more detailed info on CLI arguments consult to `sanitarr --help`:
+For more workflow details, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
-```
-Usage: sanitarr [OPTIONS] --config <CONFIG>
-
-Options:
-  -d, --force-delete           Perform actual deletion of files. If not set the program will operate in a "dry run" mode
-  -l, --log-level <LOG_LEVEL>  You can either provide a single log level (like `info`) or use a more detailed syntax like `off,sanitarr=debug,reqwest=info` (similar to `tracing_subscriber::filter::EnvFilter` syntax) [env: LOG_LEVEL=]
-  -c, --config <CONFIG>        Path to the config file
-  -h, --help                   Print help
-  -V, --version                Print version
-```
-
-You can also specify the log level using the `LOG_LEVEL` environment variable:
+Frontend CSS build (optional outside Docker):
 
 ```sh
-LOG_LEVEL="off,sanitarr=debug" sanitarr
+cd gui
+npm install
+npm run build:css
 ```
 
-## Support the Project
+## Credits
 
-If you find Sanitarr useful and want to support its development, consider buying
-me a ~~coffee~~ beer. Your support helps keep this project maintained and
-improved.
-
-[![Buy Me A
-Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-yellow?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/serzhshakur)
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request on
-GitHub.
+- Sanitarr is the foundation of this project, created by [serzhshakur](https://github.com/serzhshakur/sanitarr).
+- Jellycleanerr adds a GUI and extra workflows on top of Sanitarr.
+- Parts of the cleanup model and UX were inspired by [Jellysweep](https://github.com/jon4hz/jellysweep).
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+MIT. See [LICENSE](LICENSE).
