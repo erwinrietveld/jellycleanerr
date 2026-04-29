@@ -48,6 +48,9 @@ services:
       PORT: 8282
       INTERVAL: 45m
       LOG_LEVEL: info
+      # Optional machine-readable stats endpoint auth.
+      # Accepts comma-separated API keys via Authorization: Bearer or X-API-Key.
+      JELLYCLEANERR_API_KEYS: your-machine-api-key
       FORCE_DELETE: "true"
       IDLE_AUTO_DELETE: "true"
     volumes:
@@ -56,6 +59,51 @@ services:
 ```
 
 Open `http://<host>:8282`, go to **Settings**, configure services, and save.
+
+## Machine Stats API
+
+Jellycleanerr can expose a read-only machine-friendly stats summary endpoint for dashboards and automations.
+
+- Endpoint: `GET /api/stats/summary`
+- Auth: `Authorization: Bearer <key>` or `X-API-Key: <key>`
+- Env: set `JELLYCLEANERR_API_KEYS` to one or more comma-separated API keys
+
+Example response:
+
+```json
+{
+  "ok": true,
+  "generatedAt": "2026-04-29T12:34:56.000000+00:00",
+  "current": {
+    "pendingCount": 5,
+    "pendingSizeBytes": 1234567890,
+    "pendingWatchedCount": 3,
+    "pendingWatchedSizeBytes": 987654321,
+    "pendingIdleCount": 2,
+    "pendingIdleSizeBytes": 246913569,
+    "keptCount": 7,
+    "keptSizeBytes": 3456789012,
+    "dueCount": 1,
+    "dueSizeBytes": 123456789
+  },
+  "deleted": {
+    "totalCount": 18,
+    "totalSizeBytes": 4567890123,
+    "recentCount": 4,
+    "recentSizeBytes": 1234567890
+  },
+  "summary": {
+    "pending": { "count": 5, "sizeBytes": 1234567890 },
+    "pendingWatched": { "count": 3, "sizeBytes": 987654321 },
+    "pendingIdle": { "count": 2, "sizeBytes": 246913569 },
+    "due": { "count": 1, "sizeBytes": 123456789 },
+    "kept": { "count": 7, "sizeBytes": 3456789012 },
+    "tracked": { "count": 12, "sizeBytes": 4691356902 },
+    "deletedRecent": { "count": 4, "sizeBytes": 1234567890, "days": 30 },
+    "deletedTotal": { "count": 18, "sizeBytes": 4567890123 }
+  }
+}
+```
 
 ## Development
 

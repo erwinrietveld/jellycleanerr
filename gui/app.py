@@ -29,6 +29,7 @@ CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "60"))
 STATIC_DIR = Path(__file__).parent / "static"
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", str(60 * 60 * 24 * 7)))
 SESSION_BROWSER_TTL_SECONDS = int(os.getenv("SESSION_BROWSER_TTL_SECONDS", str(60 * 60 * 12)))
+MACHINE_API_KEYS = [part.strip() for part in os.getenv("JELLYCLEANERR_API_KEYS", "").split(",") if part.strip()]
 
 cache_lock = threading.Lock()
 cache_data = {"updated_at": 0.0, "payload": None, "error": None}
@@ -118,6 +119,25 @@ def _as_int(value, default: int, minimum: int = 1) -> int:
     if ivalue < minimum:
         return minimum
     return ivalue
+
+
+def _get_machine_api_token(headers) -> str:
+    bearer = str(headers.get("Authorization") or "").strip()
+    if bearer.lower().startswith("bearer "):
+        return bearer[7:].strip()
+    return str(headers.get("X-API-Key") or "").strip()
+
+
+def _is_machine_api_authorized(headers) -> tuple[bool, str | None]:
+    if not MACHINE_API_KEYS:
+        return False, "machine api is disabled"
+    token = _get_machine_api_token(headers)
+    if not token:
+        return False, "missing api key"
+    for candidate in MACHINE_API_KEYS:
+        if secrets.compare_digest(token, candidate):
+            return True, None
+    return False, "invalid api key"
 
 
 def get_config_usernames(cfg: dict) -> list[str]:
@@ -1460,6 +1480,50 @@ def build_stats(
     return out, None
 
 
+def build_stats_summary(stats: dict, deleted_recent_days: int = 30) -> dict:
+    current = stats.get("current", {}) or {}
+    deleted = stats.get("deleted", {}) or {}
+    pending_count = int(current.get("pendingCount") or 0)
+    pending_size = int(current.get("pendingSizeBytes") or 0)
+    kept_count = int(current.get("keptCount") or 0)
+    kept_size = int(current.get("keptSizeBytes") or 0)
+    return {
+        "pending": {
+            "count": pending_count,
+            "sizeBytes": pending_size,
+        },
+        "pendingWatched": {
+            "count": int(current.get("pendingWatchedCount") or 0),
+            "sizeBytes": int(current.get("pendingWatchedSizeBytes") or 0),
+        },
+        "pendingIdle": {
+            "count": int(current.get("pendingIdleCount") or 0),
+            "sizeBytes": int(current.get("pendingIdleSizeBytes") or 0),
+        },
+        "due": {
+            "count": int(current.get("dueCount") or 0),
+            "sizeBytes": int(current.get("dueSizeBytes") or 0),
+        },
+        "kept": {
+            "count": kept_count,
+            "sizeBytes": kept_size,
+        },
+        "tracked": {
+            "count": pending_count + kept_count,
+            "sizeBytes": pending_size + kept_size,
+        },
+        "deletedRecent": {
+            "count": int(deleted.get("recentCount") or 0),
+            "sizeBytes": int(deleted.get("recentSizeBytes") or 0),
+            "days": max(int(deleted_recent_days or 0), 1),
+        },
+        "deletedTotal": {
+            "count": int(deleted.get("totalCount") or 0),
+            "sizeBytes": int(deleted.get("totalSizeBytes") or 0),
+        },
+    }
+
+
 def _merge_settings(base_ui: dict, incoming: dict) -> dict:
     merged = json.loads(json.dumps(base_ui))
     for key in ("usernames", "username", "monitor_all_users", "monitor_all_libraries", "general"):
@@ -1585,7 +1649,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json(200, {"ok": True, "authenticated": bool(user), "user": user or None})
 
         if path.startswith("/api/"):
-            if self._require_auth() is None:
+            if path != "/api/stats/summary" and self._require_auth() is None:
                 return
 
         if path == "/api/settings":
@@ -1668,6 +1732,26 @@ class Handler(BaseHTTPRequestHandler):
             if stats is None:
                 return self._send_json(500, {"ok": False, "error": err or "unknown error"})
             return self._send_json(200, {"ok": True, **stats})
+
+        if path == "/api/stats/summary":
+            ok, auth_err = _is_machine_api_authorized(self.headers)
+            if not ok:
+                return self._send_json(401, {"ok": False, "error": auth_err or "unauthorized"})
+            qs = parse_qs(parsed.query)
+            force = qs.get("force", ["0"])[0] == "1"
+            stats, err = build_stats(force=force)
+            if stats is None:
+                return self._send_json(500, {"ok": False, "error": err or "unknown error"})
+            return self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "generatedAt": utc_now().isoformat(),
+                    "current": stats.get("current", {}),
+                    "deleted": stats.get("deleted", {}),
+                    "summary": build_stats_summary(stats),
+                },
+            )
 
         if path.startswith("/api/image/"):
             item_id = path.split("/api/image/")[-1]
