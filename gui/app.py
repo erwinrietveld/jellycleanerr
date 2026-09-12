@@ -34,7 +34,6 @@ MACHINE_API_KEYS = [part.strip() for part in os.getenv("JELLYCLEANERR_API_KEYS",
 cache_lock = threading.Lock()
 cache_data = {"updated_at": 0.0, "payload": None, "error": None}
 session_lock = threading.Lock()
-sessions: dict[str, dict] = {}
 DEFAULT_FORMULA1_TERMS = ["formula 1", "formula1", "formula one"]
 ENABLE_FORMULA1_CATEGORY = os.getenv("ENABLE_FORMULA1_CATEGORY", "false").strip().lower() in {"1", "true", "yes", "on"}
 DEFAULT_RETENTION = "60d"
@@ -326,6 +325,17 @@ def init_db() -> None:
             )
             """
         )
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sessions (
+                sid TEXT PRIMARY KEY,
+                user_json TEXT NOT NULL,
+                ttl_seconds INTEGER NOT NULL,
+                expires_at REAL NOT NULL
+            )
+            """
+        )
+        con.execute("DELETE FROM sessions WHERE expires_at <= ?", (time.time(),))
         con.commit()
 
 
@@ -484,7 +494,7 @@ def test_jellyfin_connection(base_url: str, api_key: str) -> tuple[bool, str]:
     if not base_url or not api_key:
         return False, "missing base URL or API key"
     try:
-        _ = jellyfin_get(base_url, api_key, "/System/Info/Public")
+        _ = jellyfin_get(base_url, api_key, "/System/Info")
         return True, "connected"
     except Exception as exc:
         return False, str(exc)
@@ -547,12 +557,22 @@ def test_deluge_connection(base_url: str, password: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def jellyfin_auth_headers(api_key: str) -> dict[str, str]:
+    return {
+        "Authorization": (
+            "MediaBrowser "
+            'Client="Jellycleanerr", Device="Server", '
+            'DeviceId="jellycleanerr-server", Version="1.0.0", '
+            f'Token="{api_key}"'
+        )
+    }
+
 def jellyfin_get(base_url: str, api_key: str, path: str, params: dict | None = None) -> dict:
     qs = urlencode(params or {})
     url = f"{base_url.rstrip('/')}{path}"
     if qs:
         url += f"?{qs}"
-    return http_json(url, headers={"X-Emby-Token": api_key})
+    return http_json(url, headers=jellyfin_auth_headers(api_key))
 
 
 def jellyfin_authenticate(base_url: str, username: str, password: str) -> dict:
@@ -567,7 +587,7 @@ def jellyfin_authenticate(base_url: str, username: str, password: str) -> dict:
 
 def jellyfin_delete_item(base_url: str, api_key: str, item_id: str) -> None:
     url = f"{base_url.rstrip('/')}/Items/{item_id}"
-    _ = http_status(url, headers={"X-Emby-Token": api_key}, method="DELETE")
+    _ = http_status(url, headers=jellyfin_auth_headers(api_key), method="DELETE")
 
 
 def radarr_movies(base_url: str, api_key: str) -> dict[str, dict]:
@@ -875,12 +895,15 @@ def parse_cookie_value(cookie_header: str | None, key: str) -> str:
 def create_session(user: dict, ttl_seconds: int) -> str:
     sid = secrets.token_urlsafe(32)
     ttl = max(int(ttl_seconds or 0), 60)
+    expires = time.time() + ttl
     with session_lock:
-        sessions[sid] = {
-            "user": user,
-            "ttl": ttl,
-            "expires": time.time() + ttl,
-        }
+        with sqlite3.connect(DB_PATH) as con:
+            con.execute("DELETE FROM sessions WHERE expires_at <= ?", (time.time(),))
+            con.execute(
+                "INSERT INTO sessions(sid, user_json, ttl_seconds, expires_at) VALUES (?, ?, ?, ?)",
+                (sid, json.dumps(user), ttl, expires),
+            )
+            con.commit()
     return sid
 
 
@@ -888,21 +911,41 @@ def get_session(sid: str) -> dict | None:
     if not sid:
         return None
     with session_lock:
-        entry = sessions.get(sid)
-        if not entry:
+        with sqlite3.connect(DB_PATH) as con:
+            row = con.execute(
+                "SELECT user_json, ttl_seconds, expires_at FROM sessions WHERE sid = ?",
+                (sid,),
+            ).fetchone()
+            if not row:
+                return None
+            user_json, ttl_seconds, expires_at = row
+            if float(expires_at) <= time.time():
+                con.execute("DELETE FROM sessions WHERE sid = ?", (sid,))
+                con.commit()
+                return None
+            ttl = max(int(ttl_seconds or SESSION_TTL_SECONDS), 60)
+            con.execute(
+                "UPDATE sessions SET expires_at = ? WHERE sid = ?",
+                (time.time() + ttl, sid),
+            )
+            con.commit()
+        try:
+            user = json.loads(user_json)
+        except (TypeError, json.JSONDecodeError):
+            with sqlite3.connect(DB_PATH) as con:
+                con.execute("DELETE FROM sessions WHERE sid = ?", (sid,))
+                con.commit()
             return None
-        if entry["expires"] <= time.time():
-            sessions.pop(sid, None)
-            return None
-        entry["expires"] = time.time() + max(int(entry.get("ttl") or SESSION_TTL_SECONDS), 60)
-        return entry["user"]
+        return user if isinstance(user, dict) else None
 
 
 def delete_session(sid: str) -> None:
     if not sid:
         return
     with session_lock:
-        sessions.pop(sid, None)
+        with sqlite3.connect(DB_PATH) as con:
+            con.execute("DELETE FROM sessions WHERE sid = ?", (sid,))
+            con.commit()
 
 
 def build_payload(fallback_usernames: list[str] | None = None) -> dict:
@@ -1320,9 +1363,7 @@ def auto_delete_idle_media() -> dict:
     targets = [
         i for i in payload.get("items", [])
         if i.get("status") == "due"
-        and i.get("reason") == "idle_unwatched"
         and not i.get("keep")
-        and i.get("inArr")
     ]
     out = {"total": len(targets), "deleted": 0, "errors": []}
     for item in targets:
@@ -1330,7 +1371,23 @@ def auto_delete_idle_media() -> dict:
         if not key:
             continue
         try:
-            delete_now(key)
+            result = delete_now(key)
+            deletion_steps = [
+                step for step in result.get("steps", [])
+                if step.get("name") in {
+                    "jellyfin_delete",
+                    "radarr_delete_movie",
+                    "sonarr_delete_episode_file",
+                    "qbittorrent_delete_torrent",
+                    "seerr_delete_media",
+                }
+            ]
+            if not any(step.get("ok") for step in deletion_steps):
+                details = "; ".join(
+                    str(step.get("error") or step.get("name") or "deletion failed")
+                    for step in deletion_steps
+                )
+                raise RuntimeError(details or "no deletion step succeeded")
             out["deleted"] += 1
         except Exception as exc:
             out["errors"].append({"key": key, "error": str(exc)})
@@ -1761,7 +1818,7 @@ class Handler(BaseHTTPRequestHandler):
                 base = jelly.get("base_url")
                 key = jelly.get("api_key")
                 url = f"{base.rstrip('/')}/Items/{item_id}/Images/Primary"
-                req = Request(url, headers={"X-Emby-Token": key})
+                req = Request(url, headers=jellyfin_auth_headers(key))
                 with urlopen(req, timeout=20) as resp:
                     blob = resp.read()
                     ctype = resp.headers.get("Content-Type", "image/jpeg")

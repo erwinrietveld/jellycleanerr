@@ -1173,11 +1173,18 @@ async function testConnectionInitial(service, button) {
 
 async function loadSettingsView() {
   showSettingsMessage('');
-  const [cfg, users, libraries] = await Promise.all([fetchSettings(), fetchJellyfinUsers(), fetchJellyfinLibraries()]);
-  availableUsers = users;
-  availableLibraries = libraries;
+  const cfg = await fetchSettings();
+  const [usersResult, librariesResult] = await Promise.allSettled([
+    fetchJellyfinUsers(),
+    fetchJellyfinLibraries(),
+  ]);
+  availableUsers = usersResult.status === 'fulfilled' ? usersResult.value : [];
+  availableLibraries = librariesResult.status === 'fulfilled' ? librariesResult.value : [];
   fillSettingsForm(cfg);
   captureSettingsBaseline();
+  if (usersResult.status === 'rejected' || librariesResult.status === 'rejected') {
+    showSettingsMessage('Settings loaded, but Jellyfin users or libraries could not be refreshed.', true);
+  }
   connTestButtons.forEach((btn) => updateConnTestButton(btn, 'idle'));
   await Promise.all(connTestButtons.map((btn) => testConnectionInitial(btn.dataset.service || '', btn)));
 }
